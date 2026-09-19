@@ -25,12 +25,7 @@ pub fn process(
     accounts: &mut [AccountView],
     payload: &[u8],
 ) -> ProgramResult {
-    let [authority, staging] = accounts else {
-        return Err(ProgramError::InvalidArgument);
-    };
-    processor::expect_signer(authority)?;
-    processor::expect_writable(staging)?;
-    processor::expect_owned_by(staging, program_id)?;
+    let (authority, staging) = processor::staging_pair(accounts, program_id)?;
 
     let n: &[u8; 2] = payload
         .try_into()

@@ -60,6 +60,7 @@ impl From<Groth16ProgramError> for ProgramError {
     }
 }
 
+/// Maps a verifier error onto its stable custom code.
 pub fn map_groth16(e: Groth16Error) -> ProgramError {
     use Groth16ProgramError as P;
     let code = match e {
@@ -75,4 +76,30 @@ pub fn map_groth16(e: Groth16Error) -> ProgramError {
         Groth16Error::IdentityKeyElement => P::IdentityKeyElement,
     };
     code.into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Pins every verifier error to its code. The test harness mirrors these
+    /// numbers in `program/tests/common`; this is the table they mirror.
+    #[test]
+    fn verifier_errors_map_to_their_stable_codes() {
+        let table = [
+            (Groth16Error::InvalidProofLength, 0),
+            (Groth16Error::InvalidKeyLength, 1),
+            (Groth16Error::TooManyPublicInputs, 2),
+            (Groth16Error::PublicInputCountMismatch, 3),
+            (Groth16Error::NonCanonicalScalar, 4),
+            (Groth16Error::InvalidPoint, 5),
+            (Groth16Error::ProofInvalid, 6),
+            (Groth16Error::InvalidAccountData, 7),
+            (Groth16Error::WrongDiscriminator, 8),
+            (Groth16Error::IdentityKeyElement, 104),
+        ];
+        for (error, code) in table {
+            assert_eq!(map_groth16(error), ProgramError::Custom(code), "{error:?}");
+        }
+    }
 }

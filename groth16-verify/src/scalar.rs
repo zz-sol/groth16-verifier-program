@@ -10,9 +10,11 @@ pub fn is_canonical(s: &[u8; FR_SIZE]) -> bool {
     s.as_slice() < FR_MODULUS.as_slice()
 }
 
+/// All-zero bytes: the zero scalar, and also the syscall encoding of the
+/// identity in G1 and G2, which is why this takes a slice.
 #[inline]
-pub fn is_zero(s: &[u8; FR_SIZE]) -> bool {
-    s.iter().all(|&b| b == 0)
+pub fn is_zero(bytes: &[u8]) -> bool {
+    bytes.iter().all(|&b| b == 0)
 }
 
 #[inline]

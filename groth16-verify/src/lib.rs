@@ -60,11 +60,15 @@
 //!
 //! # Features
 //!
-//! - `verify` (default): the verifier, [`Proof`], [`VerifyingKey`], account
-//!   layouts. On-chain it calls `sol_alt_bn128_group_op`; off-chain it runs
-//!   the host implementation from `solana-bn254`.
+//! - `verify` (default): the verifier, [`Proof`], [`VerifyingKey`], and the
+//!   account header parsers in `state`. On-chain it calls
+//!   `sol_alt_bn128_group_op`; off-chain it runs the host implementation from
+//!   `solana-bn254`.
 //! - `instruction` (default): client-side instruction builders and the
 //!   program's canonical address.
+//!
+//! `constants` — sizes, offsets, account lengths, the PDA seed and the system
+//! program id — needs neither feature.
 
 #[cfg(test)]
 extern crate std;

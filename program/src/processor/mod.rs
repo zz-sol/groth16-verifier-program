@@ -63,7 +63,47 @@ pub(crate) fn expect_owned_by(account: &AccountView, owner: &Address) -> Result<
     Ok(())
 }
 
+/// Rejects one account passed in two roles.
+///
+/// The staging account's key pair can sign for itself, so nothing else stops
+/// a client from naming the staging account as its own authority. [`drain_and_close`]
+/// on such a pair would credit and then zero the same balance, the runtime
+/// would reject the unbalanced instruction, and — since only `CloseStaging`
+/// and `Publish` can move lamports out of a staging account — its rent would
+/// be stuck forever. Refusing at `InitializeStaging` prevents the account from
+/// ever existing in that state; the other processors check too, cheaply.
+#[inline(always)]
+pub(crate) fn expect_distinct(a: &AccountView, b: &AccountView) -> Result<(), ProgramError> {
+    if a.address() == b.address() {
+        return Err(ProgramError::InvalidArgument);
+    }
+    Ok(())
+}
+
+/// The `[authority (s), staging (w)]` pair that `InitializeStaging`, `Write`
+/// and `CloseStaging` take, with the checks all three make: authority signs,
+/// staging is writable and ours, and they are not the same account.
+#[inline(always)]
+pub(crate) fn staging_pair<'a>(
+    accounts: &'a mut [AccountView],
+    program_id: &Address,
+) -> Result<(&'a mut AccountView, &'a mut AccountView), ProgramError> {
+    let [authority, staging] = accounts else {
+        return Err(ProgramError::InvalidArgument);
+    };
+    expect_signer(authority)?;
+    expect_writable(staging)?;
+    expect_owned_by(staging, program_id)?;
+    expect_distinct(authority, staging)?;
+    Ok((authority, staging))
+}
+
 /// Moves every lamport out of `from` into `to` and closes `from`.
+///
+/// `from` and `to` must be distinct accounts (see [`expect_distinct`]).
+/// `close` zeroes the owner, lamports and length; lamports are zeroed here
+/// too so the balance transfer reads as a transfer, not an assumption about
+/// `close`.
 #[inline(always)]
 pub(crate) fn drain_and_close(
     from: &mut AccountView,

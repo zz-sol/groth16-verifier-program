@@ -4,16 +4,16 @@
 mod common;
 
 use {
-    ark_bn254::{G1Projective, G2Projective},
+    ark_bn254::{G1Affine, G1Projective, G2Projective},
     ark_ec::CurveGroup,
     ark_ff::UniformRand,
     ark_std::rand::SeedableRng,
     common::{
         account_of, assert_custom_error, assert_program_error, assert_success,
-        assert_tx_custom_error, assert_tx_success, circuit::Instance, code, harness, tx_account_of,
-        RegisterRequest, SYSTEM_PROGRAM_ID,
+        assert_tx_custom_error, assert_tx_program_error, assert_tx_success, circuit::Instance,
+        code, harness, tx_account_of, RegisterRequest, SYSTEM_PROGRAM_ID,
     },
-    groth16_convert::OnChainKey,
+    groth16_convert::{OnChainKey, OnChainProof},
     mollusk_svm::program::keyed_account_for_system_program,
     rand_chacha::ChaCha20Rng,
     solana_account::Account,
@@ -277,6 +277,164 @@ fn published_key_is_immutable() {
     );
     assert_custom_error(&result, code::WRONG_DISCRIMINATOR);
     unchanged(&result);
+}
+
+/// A staging keypair can sign for itself, so nothing but the program stops a
+/// client from naming the staging account as its own authority. If that were
+/// allowed, `CloseStaging` and `Publish` would both credit and zero the same
+/// balance, the runtime would reject the instruction, and the rent could
+/// never be recovered. Every staging instruction refuses the aliased pair.
+#[test]
+fn staging_cannot_be_its_own_authority() {
+    let Some(h) = harness() else { return };
+    let payer = h.wallet(10_000_000_000);
+    let staging = Address::new_unique();
+    let n = 1;
+    let rent = h.rent_exempt(staging_account_len(n));
+
+    // InitializeStaging with authority = staging, as one transaction with
+    // the create: refused, and rolled back with it.
+    let accounts = [
+        payer.clone(),
+        (staging, Account::default()),
+        keyed_account_for_system_program(),
+    ];
+    let result = h.run_atomic(
+        &ix::create_staging(&h.program_id, &payer.0, &staging, &staging, n as u16, rent),
+        &accounts,
+    );
+    assert_tx_program_error(&result, 1, ProgramError::InvalidArgument);
+    assert_eq!(tx_account_of(&result, &staging), Account::default());
+
+    // Write, CloseStaging and Publish on a correctly initialized staging
+    // account, each with the staging account in the authority seat. The
+    // alias check fires before the header's authority is even read.
+    let authority = h.wallet(10_000_000_000);
+    let accounts = [
+        authority.clone(),
+        payer.clone(),
+        (staging, Account::default()),
+        keyed_account_for_system_program(),
+    ];
+    let setup = ix::create_staging(
+        &h.program_id,
+        &authority.0,
+        &authority.0,
+        &staging,
+        n as u16,
+        rent,
+    );
+    for aliased in [
+        ix::write(&h.program_id, &staging, &staging, 0, &[0]),
+        ix::close_staging(&h.program_id, &staging, &staging),
+        ix::publish(
+            &h.program_id,
+            &staging,
+            &payer.0,
+            &staging,
+            &find_key_address(&h.program_id, &[0u8; 32]).0,
+        ),
+    ] {
+        let mut ixs = setup.to_vec();
+        ixs.push(aliased);
+        let mut accounts = accounts.to_vec();
+        accounts.push((
+            find_key_address(&h.program_id, &[0u8; 32]).0,
+            Account::default(),
+        ));
+        assert_tx_program_error(
+            &h.run_atomic(&ixs, &accounts),
+            2,
+            ProgramError::InvalidArgument,
+        );
+    }
+}
+
+#[test]
+fn publish_requires_the_system_program_account() {
+    let Some(h) = harness() else { return };
+    let key = synthetic_key(1, 8);
+    let authority = h.wallet(10_000_000_000);
+    let staging = Address::new_unique();
+    let impostor = h.wallet(1);
+    let n = key.num_public_inputs();
+    let (key_pda, _) = find_key_address(&h.program_id, &key.hash());
+
+    let mut ixs = ix::create_staging(
+        &h.program_id,
+        &authority.0,
+        &authority.0,
+        &staging,
+        n as u16,
+        h.rent_exempt(staging_account_len(n)),
+    )
+    .to_vec();
+    ixs.extend(ix::write_body(
+        &h.program_id,
+        &authority.0,
+        &staging,
+        key.body(),
+        800,
+    ));
+    let mut publish = ix::publish(
+        &h.program_id,
+        &authority.0,
+        &authority.0,
+        &staging,
+        &key_pda,
+    );
+    publish.accounts[4].pubkey = impostor.0;
+    let publish_index = ixs.len();
+    ixs.push(publish);
+
+    let result = h.run_atomic(
+        &ixs,
+        &[
+            authority.clone(),
+            impostor.clone(),
+            (staging, Account::default()),
+            (key_pda, Account::default()),
+            keyed_account_for_system_program(),
+        ],
+    );
+    assert_tx_program_error(&result, publish_index, ProgramError::IncorrectProgramId);
+}
+
+/// `docs/design.md §10`: an identity `ICᵢ` is legal in a key and `Publish`
+/// accepts it; with `IC₀ = O` and zero inputs, `L` is the identity and the
+/// pairing must decode it in slot 2. On SBF the observable difference is the
+/// error: a proof that fails the equation is `ProofInvalid`, a point the
+/// syscall refused is `InvalidPoint`.
+#[test]
+fn identity_ic0_publishes_and_an_identity_l_reaches_the_pairing() {
+    let Some(h) = harness() else { return };
+    let mut rng = ChaCha20Rng::seed_from_u64(9);
+    let g1 = |rng: &mut ChaCha20Rng| G1Projective::rand(rng).into_affine();
+    let g2 = |rng: &mut ChaCha20Rng| G2Projective::rand(rng).into_affine();
+    let key = OnChainKey::new(
+        &g1(&mut rng),
+        &g2(&mut rng),
+        &g2(&mut rng),
+        &g2(&mut rng),
+        &[G1Affine::identity(), g1(&mut rng)],
+    )
+    .unwrap();
+    let key_account = h.register(&key);
+
+    // Valid points that satisfy nothing.
+    let proof = OnChainProof::new(&g1(&mut rng), &g2(&mut rng), &g1(&mut rng));
+    // Input 0: L = IC₀ = O.
+    assert_custom_error(
+        &h.verify(&key_account, &proof.0, &[[0u8; 32]]),
+        code::PROOF_INVALID,
+    );
+    // Input 1: L = O + IC₁, an identity operand to the add syscall.
+    let mut one = [0u8; 32];
+    one[31] = 1;
+    assert_custom_error(
+        &h.verify(&key_account, &proof.0, &[one]),
+        code::PROOF_INVALID,
+    );
 }
 
 #[test]

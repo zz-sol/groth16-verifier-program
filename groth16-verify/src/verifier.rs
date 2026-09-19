@@ -124,3 +124,118 @@ pub fn check_pairing(input: &[u8; PAIRING_INPUT_SIZE]) -> Result<(), Groth16Erro
         Err(Groth16Error::ProofInvalid)
     }
 }
+
+/// The identity cases from `docs/design.md §10`, on the host path. The G1
+/// syscalls encode the identity as all-zero bytes; each case below pins that
+/// the MSM and the pairing handle it where it can arise.
+#[cfg(test)]
+mod tests {
+    use {
+        super::*,
+        crate::constants::G1_IDENTITY,
+        ark_bn254::{Fr, G1Affine, G2Affine},
+        ark_ec::{AffineRepr, CurveGroup},
+        groth16_convert::{
+            wire::{fr_to_bytes, g1_to_bytes},
+            OnChainKey, OnChainProof,
+        },
+        std::vec::Vec,
+    };
+
+    fn g1(k: u64) -> G1Affine {
+        G1Affine::generator().mul_bigint([k]).into_affine()
+    }
+
+    fn g2(k: u64) -> G2Affine {
+        G2Affine::generator().mul_bigint([k]).into_affine()
+    }
+
+    /// A key with fixed non-identity `α, β, γ, δ` and the given `IC` table.
+    fn make_key(ic: &[G1Affine]) -> OnChainKey {
+        OnChainKey::new(&g1(3), &g2(5), &g2(7), &g2(11), ic).unwrap()
+    }
+
+    fn inputs(scalars: &[u64]) -> Vec<u8> {
+        scalars
+            .iter()
+            .flat_map(|&s| fr_to_bytes(&Fr::from(s)))
+            .collect()
+    }
+
+    fn l(key: &OnChainKey, scalars: &[u64]) -> [u8; G1_SIZE] {
+        let vk = VerifyingKey::from_body(key.body()).unwrap();
+        prepare_inputs(&vk, &inputs(scalars)).unwrap()
+    }
+
+    #[test]
+    fn final_l_is_identity_by_cancellation() {
+        // IC₀ = P, IC₁ = Q, IC₂ = −(P+Q); inputs 1, 1 → L = O.
+        let p = g1(2);
+        let q = g1(9);
+        let neg_sum = -(p + q).into_affine();
+        let key = make_key(&[p, q, neg_sum]);
+        assert_eq!(l(&key, &[1, 1]), G1_IDENTITY);
+        // Same with a real multiplication in the way: IC₁ = Q with input 2,
+        // IC₂ = −(P+2Q) with input 1.
+        let key = make_key(&[p, q, -(p + q + q).into_affine()]);
+        assert_eq!(l(&key, &[2, 1]), G1_IDENTITY);
+    }
+
+    #[test]
+    fn final_l_is_identity_from_identity_ic0_and_zero_inputs() {
+        let key = make_key(&[G1Affine::identity(), g1(4), g1(6)]);
+        assert_eq!(l(&key, &[0, 0]), G1_IDENTITY);
+        // And with IC₀ = O but nonzero inputs, L is the plain sum.
+        assert_eq!(
+            l(&key, &[1, 1]),
+            g1_to_bytes(&(g1(4) + g1(6)).into_affine())
+        );
+    }
+
+    #[test]
+    fn intermediate_identity_with_nonzero_final_l() {
+        // IC₀ = P, IC₁ = −P, IC₂ = Q; inputs 1, 1: the accumulator passes
+        // through O after the first add and must come out as Q.
+        let p = g1(13);
+        let q = g1(17);
+        let key = make_key(&[p, -p, q]);
+        assert_eq!(l(&key, &[1, 1]), g1_to_bytes(&q));
+    }
+
+    #[test]
+    fn identity_ic_terms_are_skipped_or_added_harmlessly() {
+        // An identity ICᵢ contributes nothing whatever its input; the
+        // multiplication syscall must accept the identity as a base point.
+        let p = g1(21);
+        let key = make_key(&[p, G1Affine::identity()]);
+        assert_eq!(l(&key, &[1]), g1_to_bytes(&p));
+        assert_eq!(l(&key, &[5]), g1_to_bytes(&p));
+    }
+
+    #[test]
+    fn pairing_accepts_an_identity_l_and_rejects_the_proof() {
+        // With L = O the equation cannot hold for a random proof, but the
+        // failure must be ProofInvalid — the pairing decoded the identity in
+        // slot 2 — not InvalidPoint.
+        let key = make_key(&[G1Affine::identity(), g1(4)]);
+        let vk = VerifyingKey::from_body(key.body()).unwrap();
+        let proof_bytes = OnChainProof::new(&g1(23), &g2(29), &g1(31));
+        let proof = Proof::from_bytes(&proof_bytes.0).unwrap();
+        assert_eq!(
+            verify(&vk, &proof, &inputs(&[0])),
+            Err(Groth16Error::ProofInvalid)
+        );
+        // Sanity: the same proof with L ≠ O fails the same way, and an
+        // off-curve A fails differently.
+        assert_eq!(
+            verify(&vk, &proof, &inputs(&[1])),
+            Err(Groth16Error::ProofInvalid)
+        );
+        let mut bad = proof_bytes.0;
+        bad[63] ^= 1;
+        assert_eq!(
+            verify(&vk, &Proof::from_bytes(&bad).unwrap(), &inputs(&[0])),
+            Err(Groth16Error::InvalidPoint)
+        );
+    }
+}

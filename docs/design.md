@@ -362,8 +362,13 @@ key, a non-canonical field element, a key account that isn't finalized or isn't
 owned by the program, and — separately from all of those — a well-formed proof
 that does not satisfy the equation.
 
-The program collapses them to `ProgramError` variants on the way out. The
-distinction survives for direct library consumers, which is where it is useful.
+The program carries every one of them across its boundary as
+`ProgramError::Custom(code)`, one code per variant, so a CPI caller sees the
+same distinctions a direct library consumer does. Failures the registry itself
+detects (wrong address, already published, staging size, write bounds,
+identity element) have codes of their own from 100 up, and plain account and
+signature failures use the standard `ProgramError` variants. `program/src/error.rs`
+is the table.
 
 ## 9. Eager entrypoint, not lazy
 

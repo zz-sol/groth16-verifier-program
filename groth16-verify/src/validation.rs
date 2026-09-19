@@ -2,6 +2,7 @@
 
 use crate::{
     constants::{G1_SIZE, PAIRING_ELEMENT_SIZE},
+    scalar::is_zero,
     syscall::{g1_add, pairing_validate_points},
     Groth16Error, VerifyingKey,
 };
@@ -41,9 +42,4 @@ pub fn validate_for_publish(vk: &VerifyingKey) -> Result<(), Groth16Error> {
         g1_add(ic, ic)?;
     }
     Ok(())
-}
-
-#[inline(always)]
-fn is_zero(bytes: &[u8]) -> bool {
-    bytes.iter().all(|&b| b == 0)
 }

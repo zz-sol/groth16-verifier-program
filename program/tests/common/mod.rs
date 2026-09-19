@@ -32,7 +32,7 @@ use {
 pub const PROGRAM_SO: &str = "solana_groth16_program";
 pub const BENCH_SO: &str = "groth16_bench";
 
-pub const SYSTEM_PROGRAM_ID: Address = Address::new_from_array([0u8; 32]);
+pub use solana_groth16_verify::constants::SYSTEM_PROGRAM_ID;
 
 /// Custom error codes mirrored from `program/src/error.rs`.
 pub mod code {
@@ -163,24 +163,23 @@ impl Harness {
         let payer = req.payer.unwrap_or(req.authority);
         let body = req.body_override.unwrap_or_else(|| key.body().to_vec());
 
-        let mut instructions = vec![
-            self.create_account_ix(
-                &req.authority.0,
-                &staging,
-                staging_account_len(n),
-                &self.program_id,
-            ),
-            ix::initialize_staging(&self.program_id, &req.authority.0, &staging, n as u16),
-        ];
-        for (i, piece) in body.chunks(req.chunk).enumerate() {
-            instructions.push(ix::write(
-                &self.program_id,
-                &req.authority.0,
-                &staging,
-                (i * req.chunk) as u32,
-                piece,
-            ));
-        }
+        // The library's own builders, so the happy path exercises them.
+        let mut instructions = ix::create_staging(
+            &self.program_id,
+            &req.authority.0,
+            &req.authority.0,
+            &staging,
+            n as u16,
+            self.rent_exempt(staging_account_len(n)),
+        )
+        .to_vec();
+        instructions.extend(ix::write_body(
+            &self.program_id,
+            &req.authority.0,
+            &staging,
+            &body,
+            req.chunk,
+        ));
         instructions.push(ix::publish(
             &self.program_id,
             &req.authority.0,
@@ -256,13 +255,16 @@ impl<'a> RegisterRequest<'a> {
     }
 }
 
-pub fn account_of(result: &InstructionResult, address: &Address) -> Account {
-    result
-        .resulting_accounts
+fn lookup(accounts: &[(Address, Account)], address: &Address) -> Account {
+    accounts
         .iter()
         .find(|(a, _)| a == address)
         .map(|(_, acc)| acc.clone())
         .unwrap_or_else(|| panic!("account {address} not in result"))
+}
+
+pub fn account_of(result: &InstructionResult, address: &Address) -> Account {
+    lookup(&result.resulting_accounts, address)
 }
 
 pub fn assert_success(result: &InstructionResult) {
@@ -285,12 +287,7 @@ pub fn assert_program_error(result: &InstructionResult, expected: ProgramError) 
 }
 
 pub fn tx_account_of(result: &TransactionResult, address: &Address) -> Account {
-    result
-        .resulting_accounts
-        .iter()
-        .find(|(a, _)| a == address)
-        .map(|(_, acc)| acc.clone())
-        .unwrap_or_else(|| panic!("account {address} not in result"))
+    lookup(&result.resulting_accounts, address)
 }
 
 pub fn assert_tx_success(result: &TransactionResult) {

@@ -62,8 +62,9 @@ impl<'a> Proof<'a> {
     }
 }
 
-/// Fixed-size sub-array at a compile-time-checked offset. `N` and `OFFSET`
-/// are constants at every call site, so the bounds check folds away.
+/// Fixed-size sub-array of `N` bytes at `offset`. The slice bounds check
+/// stays; where `offset` is a constant (every proof and fixed key slot) it
+/// folds away, and where it is not (`VerifyingKey::ic(i)`) it is one compare.
 #[inline(always)]
 pub(crate) fn fixed<const N: usize>(bytes: &[u8], offset: usize) -> &[u8; N] {
     bytes[offset..offset + N]

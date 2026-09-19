@@ -15,10 +15,7 @@ use {
 
 declare_id!("GrPeAM83MtRfR8NvbW3tMMSBzQ9BsmQrgLjLCQNwZW4P");
 
-/// System program address, spelled out to avoid a dependency for one constant.
-pub const SYSTEM_PROGRAM_ID: Address = Address::new_from_array([0u8; 32]);
-
-pub use crate::tag::Tag;
+pub use crate::{constants::SYSTEM_PROGRAM_ID, tag::Tag};
 
 /// `sha256(body)`, the second PDA seed of a canonical key account.
 pub fn vk_hash(body: &[u8]) -> [u8; 32] {

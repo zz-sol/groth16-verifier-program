@@ -18,13 +18,8 @@ pub fn process(
     if !payload.is_empty() {
         return Err(ProgramError::InvalidInstructionData);
     }
-    let [authority, staging] = accounts else {
-        return Err(ProgramError::InvalidArgument);
-    };
-    processor::expect_signer(authority)?;
+    let (authority, staging) = processor::staging_pair(accounts, program_id)?;
     processor::expect_writable(authority)?;
-    processor::expect_writable(staging)?;
-    processor::expect_owned_by(staging, program_id)?;
 
     {
         let data = staging.try_borrow()?;

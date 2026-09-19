@@ -22,6 +22,10 @@ pub const FR_MODULUS: [u8; FR_SIZE] = [
 /// used without `verify`.
 pub const VK_SEED_PREFIX: &[u8] = b"vk";
 
+/// The system program, spelled out so that neither the program nor the
+/// instruction builders need a dependency for one all-zero constant.
+pub const SYSTEM_PROGRAM_ID: pinocchio::Address = pinocchio::Address::new_from_array([0u8; 32]);
+
 /// The syscall encoding of the G1 identity: all zeros.
 pub const G1_IDENTITY: [u8; G1_SIZE] = [0u8; G1_SIZE];
 

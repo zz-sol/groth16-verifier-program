@@ -153,9 +153,9 @@ Total `40 + 448 + 64·(n+1)` bytes, checked exactly at `InitializeStaging`.
 
 | Tag | Instruction         | Accounts                                          | Signer            | Notes |
 | --- | ------------------- | ------------------------------------------------- | ----------------- | ----- |
-| `0` | `InitializeStaging` | authority (s), staging (w)                        | authority         | Data `num_public_inputs: u16`, rejected if `n > 151`. Requires the account be owned by the program, uninitialized, and exactly `40 + 448 + 64·(n+1)` bytes. Writes the header. **Must be in the same transaction as the `create_account` that made the staging account** — see [Registration](#registration) |
+| `0` | `InitializeStaging` | authority (s), staging (w)                        | authority         | Data `num_public_inputs: u16`, rejected if `n > 151`. Requires the account be owned by the program, uninitialized, and exactly `40 + 448 + 64·(n+1)` bytes. Writes the header. Refuses `authority == staging` (as do `Write`, `Publish` and `CloseStaging`): a staging account that is its own authority could never be closed and its rent would be stuck. **Must be in the same transaction as the `create_account` that made the staging account** — see [Registration](#registration) |
 | `1` | `Write`             | authority (s), staging (w)                        | stored authority  | Data `offset: u32 ‖ bytes`. `offset` is relative to the **body**; the write must satisfy `offset + len ≤ body_len` with overflow-checked arithmetic. The header is never writable |
-| `2` | `Publish`           | authority (s,w), payer (s,w), staging (w), vk PDA (w), system | stored authority, payer | No instruction data. Derives the canonical PDA from `sha256(body)` and checks it is unpublished, validates the staging body, brings the PDA into existence at its exact final size, copies the body, writes the header — all in one instruction. Closes staging, refunding its rent to authority (which is why authority is writable) |
+| `2` | `Publish`           | authority (s,w), payer (s,w), staging (w), vk PDA (w), system | stored authority, payer | No instruction data. Derives the canonical PDA from `sha256(body)` and checks it is unpublished, validates the staging body, brings the PDA into existence at its exact final size, copies the body, writes the header — all in one instruction. Closes staging, refunding its rent to authority (which is why authority is writable). `IncorrectProgramId` if the last account is not the system program |
 | `3` | `Verify`            | vk PDA (r)                                        | none              | `proof ‖ public_inputs`; the hot path |
 | `4` | `CloseStaging`      | authority (s,w), staging (w)                      | stored authority  | Refunds staging rent. Canonical accounts cannot be closed |
 
@@ -368,6 +368,15 @@ verifies differently or rewrites key accounts. Callers should check the
 program's upgrade authority before hardcoding anything, exactly as they would
 check a proxy admin on Ethereum.
 
+**Proofs are malleable.** Given one valid Groth16 proof `(A, B, C)`, anyone can
+produce unboundedly many others for the same statement — `(r·A, B/r, C)` for
+any scalar `r`, among other rerandomizations — and the verifier accepts all of
+them, as it must. A consuming program therefore gets no replay protection from
+the proof bytes: hashing the proof, or storing it, to detect a second use is
+broken by design. Anything that must be unique per proof — a nullifier, a
+nonce, a recipient — belongs in the public inputs, where the circuit binds it
+and where the consuming program can record it.
+
 ### `Verify` semantics
 
 Returns `Ok(())` when the proof verifies. Verification and layout failures
@@ -421,7 +430,8 @@ methodology, and the stage-by-stage tables are in
 | `program/tests/walkthrough.rs`             | The [Registration](#registration) example end to end, every transaction a real message: `create_staging` atomically, chunked `write_body`, `Publish` with refund, the user recomputing the address from the distributed key, the consumer pinning the address and verifying |
 | `program/tests/gnark.rs`                   | The gnark fixture registered through the real instruction flow and verified on SBF; wrong input, tampered proof, wrong input count and non-canonical scalar each rejected with the right code |
 | `program/tests/arkworks.rs`                | Fresh random arkworks setups and proofs every run for `n ∈ {0, 1, 2, 5, 8}`; inputs of exactly `0` and `1` through the skip paths; a proof under the wrong key |
-| `program/tests/registry.rs`                | Every registration guarantee from `docs/design.md §2`: pre-funded target, payer ≠ authority, non-canonical bump, body/address mismatch, address checked before points, invalid and identity points, republish, a published key handed to every staging instruction and left byte-for-byte intact, `create_account ‖ InitializeStaging` succeeding and rolling back as one transaction, `n = 151` and `n = 152`, `Write` bounds, staging authority, `Verify` account checks |
+| `solana-groth16-verify` unit tests (`verifier.rs`) | The identity cases from `docs/design.md §10` on the host path: `L` at the identity by cancellation and by zero `IC₀` with zero inputs, an intermediate identity with a nonzero `L`, identity `ICᵢ` terms, and the pairing decoding an identity `L` |
+| `program/tests/registry.rs`                | Every registration guarantee from `docs/design.md §2`: pre-funded target, payer ≠ authority, non-canonical bump, body/address mismatch, address checked before points, invalid and identity points, republish, a published key handed to every staging instruction and left byte-for-byte intact, `create_account ‖ InitializeStaging` succeeding and rolling back as one transaction, a staging account refused as its own authority by every instruction, `Publish` without the system program, identity `IC₀` published and verified against, `n = 151` and `n = 152`, `Write` bounds, staging authority, `Verify` account checks |
 | `program/tests/malformed.rs`               | Every early-rejection path: unknown tag, empty data, short proof, key account length/header mismatch, missing signers, wrong owners, read-only accounts, short payloads, uninitialized staging, wrong publisher |
 | `program/tests/cu.rs`                      | The CU breakdown from `docs/cu-budget.md`, asserting every stage delta is at or above its syscall floor |
 

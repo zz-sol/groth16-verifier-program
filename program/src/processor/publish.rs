@@ -32,12 +32,11 @@ use {
     },
     pinocchio_system::instructions::{Allocate, Assign, Transfer},
     solana_groth16_verify::{
+        constants::SYSTEM_PROGRAM_ID,
         state::{key_account_len, write_key_header, KeyHeader, KEY_HEADER_LEN, VK_SEED_PREFIX},
         VerifyingKey,
     },
 };
-
-const SYSTEM_PROGRAM_ID: Address = Address::new_from_array([0u8; 32]);
 
 pub fn process(
     program_id: &Address,
@@ -47,7 +46,7 @@ pub fn process(
     if !payload.is_empty() {
         return Err(ProgramError::InvalidInstructionData);
     }
-    let [authority, payer, staging, key, _system] = accounts else {
+    let [authority, payer, staging, key, system] = accounts else {
         return Err(ProgramError::InvalidArgument);
     };
     processor::expect_signer(authority)?;
@@ -57,8 +56,17 @@ pub fn process(
     processor::expect_writable(staging)?;
     processor::expect_writable(key)?;
     processor::expect_owned_by(staging, program_id)?;
+    processor::expect_distinct(authority, staging)?;
+    // The CPIs below name the system program by id, so a wrong account here
+    // would only fail later and less clearly.
+    if system.address() != &SYSTEM_PROGRAM_ID {
+        return Err(ProgramError::IncorrectProgramId);
+    }
 
     // --- 1. staging header ------------------------------------------------------
+    // This borrow is held across the CPIs in step 4. That is fine: staging is
+    // not among the accounts passed to them, so the runtime never touches it,
+    // and the body is still needed afterwards for the copy into `key`.
     let staging_data = staging.try_borrow()?;
     let (header, body) = processor::authorized_staging(&staging_data, authority)?;
     let n = header.num_public_inputs;
