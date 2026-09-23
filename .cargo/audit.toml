@@ -1,8 +1,0 @@
-[advisories]
-ignore = [
-    # tracing-subscriber 0.2 (ANSI escape sequences in logged user input). Pulled
-    # in only by ark-relations 0.5, a dev-dependency of the program tests via
-    # ark-groth16; nothing here logs untrusted input. Remove once ark-relations
-    # moves to tracing-subscriber 0.3.
-    "RUSTSEC-2025-0055",
-]

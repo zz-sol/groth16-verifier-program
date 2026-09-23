@@ -472,5 +472,5 @@ workflow, which drives per-package Makefile targets: `format-check-<pkg>`,
 `clippy-<pkg>`, `build-doc-<pkg>` and `powerset-<pkg>` on the nightly pinned in
 the Makefile, `build-sbf-<pkg>` for `program` and `bench`, `test-<pkg>` for
 every package, plus `audit` and `spellcheck` (dictionary in
-`.config/spellcheck.dic`, audit ignores in `.cargo/audit.toml`). Every one of
+`.config/spellcheck.dic`; `cargo audit` runs with no ignore list). Every one of
 these runs locally with the same `make` invocation.

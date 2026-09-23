@@ -14,7 +14,7 @@ use {
         eq::EqGadget,
         fields::{fp::FpVar, FieldVar},
     },
-    ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError},
+    ark_relations::gr1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError},
     ark_std::rand::{Rng, SeedableRng},
     groth16_convert::{arkworks, wire::g1_to_bytes, OnChainKey, OnChainProof},
     rand_chacha::ChaCha20Rng,
