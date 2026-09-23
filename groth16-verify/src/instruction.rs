@@ -39,17 +39,15 @@ pub fn initialize_staging(
     staging: &Address,
     num_public_inputs: u16,
 ) -> Instruction {
-    let mut data = Vec::with_capacity(3);
-    data.push(Tag::InitializeStaging as u8);
-    data.extend_from_slice(&num_public_inputs.to_le_bytes());
-    Instruction::new_with_bytes(
-        *program_id,
-        &data,
-        vec![
+    let [lo, hi] = num_public_inputs.to_le_bytes();
+    Instruction {
+        program_id: *program_id,
+        accounts: vec![
             AccountMeta::new_readonly(*authority, true),
             AccountMeta::new(*staging, false),
         ],
-    )
+        data: vec![Tag::InitializeStaging as u8, lo, hi],
+    }
 }
 
 /// System-program `CreateAccount` for a staging account sized for `n` public
@@ -79,14 +77,14 @@ pub fn create_staging(
     data.extend_from_slice(&lamports.to_le_bytes());
     data.extend_from_slice(&(space as u64).to_le_bytes());
     data.extend_from_slice(program_id.as_array());
-    let create = Instruction::new_with_bytes(
-        SYSTEM_PROGRAM_ID,
-        &data,
-        vec![
+    let create = Instruction {
+        program_id: SYSTEM_PROGRAM_ID,
+        accounts: vec![
             AccountMeta::new(*payer, true),
             AccountMeta::new(*staging, true),
         ],
-    );
+        data,
+    };
     [
         create,
         initialize_staging(program_id, authority, staging, num_public_inputs),
@@ -125,14 +123,14 @@ pub fn write(
     data.push(Tag::Write as u8);
     data.extend_from_slice(&offset.to_le_bytes());
     data.extend_from_slice(bytes);
-    Instruction::new_with_bytes(
-        *program_id,
-        &data,
-        vec![
+    Instruction {
+        program_id: *program_id,
+        accounts: vec![
             AccountMeta::new_readonly(*authority, true),
             AccountMeta::new(*staging, false),
         ],
-    )
+        data,
+    }
 }
 
 /// Data `[2]`. Accounts: authority (s,w), payer (s,w), staging (w),
@@ -147,17 +145,17 @@ pub fn publish(
     staging: &Address,
     key: &Address,
 ) -> Instruction {
-    Instruction::new_with_bytes(
-        *program_id,
-        &[Tag::Publish as u8],
-        vec![
+    Instruction {
+        program_id: *program_id,
+        accounts: vec![
             AccountMeta::new(*authority, true),
             AccountMeta::new(*payer, true),
             AccountMeta::new(*staging, false),
             AccountMeta::new(*key, false),
             AccountMeta::new_readonly(SYSTEM_PROGRAM_ID, false),
         ],
-    )
+        data: vec![Tag::Publish as u8],
+    }
 }
 
 /// Data `[3, proof (256), public_inputs (32·n)]`. Accounts: key PDA (r).
@@ -173,21 +171,21 @@ pub fn verify(
     for input in public_inputs {
         data.extend_from_slice(input);
     }
-    Instruction::new_with_bytes(
-        *program_id,
-        &data,
-        vec![AccountMeta::new_readonly(*key, false)],
-    )
+    Instruction {
+        program_id: *program_id,
+        accounts: vec![AccountMeta::new_readonly(*key, false)],
+        data,
+    }
 }
 
 /// Data `[4]`. Accounts: authority (s,w), staging (w).
 pub fn close_staging(program_id: &Address, authority: &Address, staging: &Address) -> Instruction {
-    Instruction::new_with_bytes(
-        *program_id,
-        &[Tag::CloseStaging as u8],
-        vec![
+    Instruction {
+        program_id: *program_id,
+        accounts: vec![
             AccountMeta::new(*authority, true),
             AccountMeta::new(*staging, false),
         ],
-    )
+        data: vec![Tag::CloseStaging as u8],
+    }
 }
