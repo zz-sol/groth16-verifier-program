@@ -33,7 +33,7 @@ impl<'a> VerifyingKey<'a> {
             .len()
             .checked_sub(VK_FIXED_SIZE)
             .ok_or(Groth16Error::InvalidKeyLength)?;
-        if ic_bytes % G1_SIZE != 0 {
+        if !ic_bytes.is_multiple_of(G1_SIZE) {
             return Err(Groth16Error::InvalidKeyLength);
         }
         let num_public_inputs = (ic_bytes / G1_SIZE)
