@@ -451,11 +451,11 @@ path and every documented rejection has a test that pins the returned error.
 
 ## Build and test
 
-Host toolchain is pinned to stable `1.93.1` in `rust-toolchain.toml`. SBF
-builds use `cargo build-sbf` from solana-cli `4.2.2` (platform-tools `v1.54`)
-and target SBF arch `v3`; `make SBF_ARCH=v2 …` builds for older toolchains.
-Both versions, and the nightly used for rustfmt and clippy, live at the top of
-the `Makefile` and are read from there by CI.
+The host toolchain is pinned in `rust-toolchain.toml`; the solana-cli release,
+the SBF arch it targets and the nightly used for lints are set at the top of
+the `Makefile`. None of them are repeated here, so bumping one is a one-file
+change, and CI reads the same values. `make SBF_ARCH=v2 …` builds for
+toolchains that predate the default arch.
 
 ```sh
 make test-host           # solana-groth16-verify + groth16-convert, including the gnark fixture
