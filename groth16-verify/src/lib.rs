@@ -95,8 +95,8 @@ mod validation;
 #[cfg(feature = "verify")]
 pub mod verifier;
 #[cfg(feature = "verify")]
-mod vk;
+mod verifying_key;
 
 pub use error::Groth16Error;
 #[cfg(feature = "verify")]
-pub use {proof::Proof, verifier::verify, vk::VerifyingKey};
+pub use {proof::Proof, verifier::verify, verifying_key::VerifyingKey};

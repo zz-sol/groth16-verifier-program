@@ -7,7 +7,7 @@
 //! staging account  [0] disc=2  [1] reserved  [2..4] n  [4..8] reserved  [8..40] authority  [40..] body
 //! ```
 
-use crate::{constants::MAX_PUBLIC_INPUTS, error::Groth16Error, vk::VerifyingKey};
+use crate::{constants::MAX_PUBLIC_INPUTS, error::Groth16Error, verifying_key::VerifyingKey};
 
 pub use crate::constants::{
     key_account_len, staging_account_len, KEY_HEADER_LEN, STAGING_HEADER_LEN, VK_SEED_PREFIX,

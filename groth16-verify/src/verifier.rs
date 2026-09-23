@@ -21,7 +21,7 @@ use crate::{
     proof::Proof,
     scalar,
     syscall::{g1_add, g1_mul, pairing_is_one},
-    vk::VerifyingKey,
+    verifying_key::VerifyingKey,
 };
 
 /// Verifies `proof` against `vk` for `public_inputs` (`n × 32` big-endian
