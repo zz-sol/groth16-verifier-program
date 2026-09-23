@@ -16,7 +16,7 @@
 //!
 //! The address checks come before point validation because they are cheap
 //! (one hash, one derivation, one owner compare) and validation is not
-//! (`61,299 + 334·n` CU). A republish or a wrong target fails before paying
+//! (`61,299 + 334·⌈n/2⌉` CU). A republish or a wrong target fails before paying
 //! for the pairing.
 
 use {

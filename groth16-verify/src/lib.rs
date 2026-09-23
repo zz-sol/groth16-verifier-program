@@ -27,7 +27,7 @@
 //! off-curve points as it deserializes them, but not an identity `α`, `−β`,
 //! `−γ` or `−δ`, under which the verification equation degenerates (an identity
 //! `−γ` makes one fixed proof verify for every public input). Those checks are
-//! [`VerifyingKey::validate_for_publish`]. They cost about `61,000 + 334·n` CU
+//! [`VerifyingKey::validate_for_publish`]. They cost about `61,000 + 167·n` CU
 //! and are meant to run **once when the key is accepted**, not on every proof.
 //! They establish that the bytes are a Groth16 key for which the verifier is
 //! sound, and nothing more.

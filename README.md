@@ -188,7 +188,7 @@ wrong `n`, or contents that don't hash to its address.
    bump), and closes staging.
 
 Step 2 comes before step 3 because it is cheap — one hash, one derivation, one
-owner compare — and step 3 is not: `61,299 + 334·n` CU of syscalls. A republish
+owner compare — and step 3 is not: `61,299 + 334·⌈n/2⌉` CU of syscalls. A republish
 or a wrong target address fails before paying for the pairing.
 
 Step 4 does not assume the address is untouched. Anyone can transfer lamports to
@@ -201,9 +201,11 @@ piecewise: transfer the shortfall to rent-exemption (if any), `allocate`,
 program already is the "already published" case and fails; a target owned by
 anything else is unreachable for a PDA and fails.
 
-`Publish` costs `61,299 + 334·n` CU in point validation plus roughly 15,000 in
-hashing, address derivation and CPIs; the full registration chain for the
-largest key (`n = 151`) measures about 140,000 CU, inside the default budget.
+`Publish` costs `61,299 + 334·⌈n/2⌉` CU in point validation — one pairing call
+for the G2 points, and one `G1_ADD` per *pair* of `ICᵢ`, since the syscall
+validates both operands — plus roughly 15,000 in hashing, address derivation
+and CPIs; the full registration chain for the largest key (`n = 151`) measures
+about 109,000 CU, inside the default budget.
 Publishing clients should still simulate rather than assume. See
 [docs/cu-budget.md](docs/cu-budget.md#publish).
 

@@ -323,14 +323,16 @@ the subgroup check. So `Publish` must not validate `−β`, `−γ`, `−δ` wit
 `(α, −β), (IC₀, −γ), (IC₀, −δ)`, which validates all three G2 points and both
 `α` and `IC₀`. `IC₀` is paired twice rather than reaching for `IC₁` because a
 key with `n = 0` has no `IC₁`. The remaining `IC₁..ICₙ` go through `G1_ADD`
-with themselves — G1 addition *does* deserialize with full validation, and
+two at a time, an odd last point added to itself — G1 addition *does*
+deserialize both operands with full validation, and
 BN254's G1 has cofactor 1, so on-curve is in-subgroup. In every case the check
 is that the *syscall succeeds* — a failed deserialization returns an error —
 and the 32-byte pairing result is ignored: these pairs have no reason to
 multiply to one for a legitimate key, and requiring it would reject every
-valid key. This is the cold path, so the cost is not optimized; it comes to
-`61,299 + 334·n` plus fixed overhead, and stays inside the default budget for
-every publishable `n`. See [cu-budget.md § Publish](cu-budget.md#publish).
+valid key. This is the cold path, so the cost is not optimized beyond the
+obvious — `IC₁..ICₙ` are validated two per `G1_ADD`, since the syscall
+deserializes both operands; it comes to `61,299 + 334·⌈n/2⌉` plus fixed
+overhead, and stays inside the default budget for every publishable `n`. See [cu-budget.md § Publish](cu-budget.md#publish).
 
 ## 7. Crate split
 

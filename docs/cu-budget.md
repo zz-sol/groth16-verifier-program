@@ -146,7 +146,7 @@ runtime constants:
 | Component                                    | CU                              |
 | -------------------------------------------- | ------------------------------- |
 | 3-pair validation pairing                    | `36,364 + 2×12,121 + 85 + 576 + 32 = 61,299` |
-| `G1_ADD` self-addition, per `IC₁..ICₙ`        | `334 × n`                       |
+| `G1_ADD` over adjacent pairs of `IC₁..ICₙ`    | `334 × ⌈n/2⌉` — both operands are validated, an odd tail is added to itself |
 | `sha256(body)`                               | `85 + ≤ 1 per byte` — under 10,300 at `n = 151` |
 | `find_program_address`                       | `1,500` per attempt; about half of all bumps are off-curve, so expect 2 attempts, and treat 10 (15,000) as a practical worst case |
 | Three CPIs (`transfer`, `allocate`, `assign`) | roughly 1,000 each plus serialization |
@@ -157,9 +157,9 @@ same full validation (`PodG1 → G1` uses `Validate::Yes`), BN254's G1 has
 cofactor 1 so on-curve already means in-subgroup, and addition is the cheapest
 opcode that runs that deserialization. Only G2 needs the pairing path.
 
-Call it `61,299 + 334·n + ~15,000`. The whole registration chain —
+Call it `61,299 + 334·⌈n/2⌉ + ~15,000`. The whole registration chain —
 `create_account`, `InitializeStaging`, thirteen 800-byte `Write`s, `Publish` —
-for the largest key measures **139,766 CU** under Mollusk (`registry.rs`,
+for the largest key measures **109,239 CU** under Mollusk (`registry.rs`,
 `max_size_key_publishes…`), comfortably inside the default 200,000 budget.
 
 So compute never constrains registration: the `n ≤ 151` size limit binds first
