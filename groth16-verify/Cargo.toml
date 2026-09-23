@@ -2,7 +2,7 @@
 name = "solana-groth16-verify"
 version = "0.1.0"
 edition = "2021"
-description = "Stateless, allocation-free Groth16 (BN254) verifier for Solana programs"
+description = "Stateless Groth16 (BN254) verifier for Solana programs, allocation-free on-chain, with client-side instruction builders"
 license = "Apache-2.0"
 
 [lib]
