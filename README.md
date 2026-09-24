@@ -404,20 +404,20 @@ end-to-end under Mollusk (`make cu`), random public inputs:
 
 | `n` | Syscall floor | `Verify` end-to-end | Overhead |
 | --- | ------------- | ------------------- | -------- |
-| 0   | 73,612        | 74,037              | 425      |
-| 1   | 77,786        | 78,444              | 658      |
-| 2   | 81,960        | 82,851              | 891      |
-| 8   | 106,996       | 109,293             | 2,297    |
-| 16  | 140,396       | 144,549             | 4,153    |
-| 32  | 207,180       | 215,061             | 7,881    |
+| 0   | 73,612        | 74,005              | 393      |
+| 1   | 77,786        | 78,397              | 611      |
+| 2   | 81,960        | 82,762              | 802      |
+| 8   | 106,996       | 108,952             | 1,956    |
+| 16  | 140,396       | 143,872             | 3,476    |
+| 32  | 207,180       | 213,712             | 6,532    |
 
 The floor is `73,612 + 4,174·n` (one 4-pair pairing, one G1 multiply and one
 G1 add per input). Everything above it is SBF: about 400 CU fixed — entrypoint,
-account checks, buffer assembly, result decode — plus about 233 per public
+account checks, buffer assembly, result decode — plus about 190 per public
 input. Reading the key from an account measures no more expensive than reading
 it from instruction data. Inputs equal to `0` or `1` skip the multiply, and a
 term whose `ICᵢ` is the identity (an unused public input) is skipped entirely:
-with all eight inputs zero, `n = 8` verifies in 74,733 CU.
+with all eight inputs zero, `n = 8` verifies in 74,265 CU.
 
 The pairing dominates for small circuits — 95% of the cost at `n = 1`. The MSM
 overtakes it past roughly 18 public inputs. Full derivation, the measurement

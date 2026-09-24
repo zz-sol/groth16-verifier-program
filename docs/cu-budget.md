@@ -233,30 +233,30 @@ out low by `R`.
 
 ```text
 inputs      n    M(∅)     M(0)     M(1)     M(2)     M(3)     M(4)      E2E
-random      0     102      238      409      408    74029    74196    74037
-random      1     102      238      409     4815    74029    78603    78444
-random      2     102      238      409     9222    74029    83010    82851
-random      4     102      238      409    18036    74029    91824    91665
-random      8     102      238      409    35664    74029   109452   109293
-random     16     102      238      409    70919    74029   144707   144548
-random     32     102      238      409   141432    74029   215220   215061
-all zero    8     102      238      409     1104    74029    74892    74733
-all one     8     102      238      409     4584    74029    78372    78213
+random      0     102      238      409      378    74029    74166    74005
+random      1     102      238      409     4770    74029    78558    78397
+random      2     102      238      409     9135    74029    82923    82762
+random      4     102      238      409    17865    74029    91653    91492
+random      8     102      238      409    35325    74029   109113   108952
+random     16     102      238      409    70245    74029   144033   143872
+random     32     102      238      409   140085    74029   213873   213712
+all zero    8     102      238      409      638    74029    74426    74265
+all one     8     102      238      409     4317    74029    78105    77944
 ```
 
 Derived:
 
 ```text
 inputs      n      R     S_msm assemble      MSM  pairing      core  overhead  plumbing
-random      0    136         0      171      170    73791     73958       346       -23
-random      1    136      4174      171     4577    73791     78365       579       -23
-random      2    136      8348      171     8984    73791     82772       812       -23
-random      4    136     16696      171    17798    73791     91586      1278       -23
-random      8    136     33392      171    35426    73791    109214      2210       -23
-random     16    136     66784      171    70681    73791    144469      4073       -23
-random     32    136    133568      171   141194    73791    214982      7802       -23
-all zero    8    136         0      171      866    73791     74654      1042       -23
-all one     8    136      2672      171     4346    73791     78134      1850       -23
+random      0    136         0      171      140    73791     73928       316       -25
+random      1    136      4174      171     4532    73791     78320       534       -25
+random      2    136      8348      171     8897    73791     82685       725       -25
+random      4    136     16696      171    17627    73791     91415      1107       -25
+random      8    136     33392      171    35087    73791    108875      1871       -25
+random     16    136     66784      171    70007    73791    143795      3399       -25
+random     32    136    133568      171   139847    73791    213635      6455       -25
+all zero    8    136         0      171      400    73791     74188       576       -25
+all one     8    136      2672      171     4079    73791     77867      1583       -25
 ```
 
 What the numbers say:
@@ -264,11 +264,15 @@ What the numbers say:
 - **The pairing stage is 73,791**: the 73,612 syscall plus 179 CU of buffer
   assembly and result decode. That 179 is the entire non-syscall cost of the
   pairing path.
-- **The MSM stage is `S_msm + ~170 + ~233·n`.** The 233 per input is the
-  canonicity compare, the zero/one tests, and copying 96 + 128 bytes into the
-  two syscall input buffers and 64 bytes back out. With inputs all zero the
-  loop costs 866 for eight inputs — the checks, no syscalls.
-- **The real `Verify` is 23 CU *cheaper* than the bench's core path.** The
+- **The MSM stage is `S_msm + ~170 + ~190·n`.** The 190 per input is the
+  canonicity compare, the zero/one tests on the scalar, the identity test on
+  `ICᵢ`, and copying 96 + 128 bytes into the two syscall input buffers and 64
+  bytes back out. With inputs all zero the loop costs 400 for eight inputs —
+  the checks, no syscalls. The zero and identity tests OR-reduce eight bytes
+  at a time; a byte-wise loop was cheap on random input and cost about 60 CU
+  per all-zero input, and the unrolled compare the compiler emits for a fixed
+  array was the reverse.
+- **The real `Verify` is 25 CU *cheaper* than the bench's core path.** The
   "plumbing" row is `E2E − (M(4) − R)`, and it comes out slightly negative: the
   bench reaches the same core call by parsing `n`, the key body, the proof, the
   inputs and `L` out of instruction data with a bounds check at each split (all
@@ -278,8 +282,8 @@ What the numbers say:
   the account path is marginally shorter. Reading the key from an account
   therefore costs nothing relative to reading it from instruction data — the
   question the row was there to answer.
-- **Total SBF overhead is `~350 + ~233·n`**, i.e. 0.5% of the total at `n = 0`
-  and 3.6% at `n = 32`. The rest is syscalls at fixed prices.
+- **Total SBF overhead is `~320 + ~190·n`**, i.e. 0.4% of the total at `n = 0`
+  and 3.0% at `n = 32`. The rest is syscalls at fixed prices.
 
 The cost model's two checks hold: `pairing − assemble = 73,620 ≥ 73,612`, and
 the MSM stage exceeds `S_msm` by a small positive amount in every row, including
