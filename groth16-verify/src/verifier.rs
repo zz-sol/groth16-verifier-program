@@ -43,7 +43,9 @@ pub fn verify(vk: &VerifyingKey, proof: &Proof, public_inputs: &[u8]) -> Result<
 /// syscall. Inputs equal to `0` contribute nothing and are skipped entirely;
 /// inputs equal to `1` skip the multiplication. Both are safe to special-case
 /// because public inputs are public — the CU cost this makes data-dependent
-/// leaks nothing.
+/// leaks nothing. A term whose `ICᵢ` is the identity is skipped too: it
+/// contributes nothing for any scalar, and it is what a public input that
+/// appears in no constraint looks like in the key.
 pub fn prepare_inputs(
     vk: &VerifyingKey,
     public_inputs: &[u8],
@@ -68,6 +70,10 @@ pub fn prepare_inputs(
             continue;
         }
         let ic = vk.ic(i + 1);
+        if scalar::is_zero(ic) {
+            // Identity point: `s · O = O`. Only an unused public input has one.
+            continue;
+        }
         if scalar::is_one(s) {
             acc = g1_add(&acc, ic)?;
         } else {

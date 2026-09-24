@@ -415,8 +415,9 @@ The floor is `73,612 + 4,174·n` (one 4-pair pairing, one G1 multiply and one
 G1 add per input). Everything above it is SBF: about 400 CU fixed — entrypoint,
 account checks, buffer assembly, result decode — plus about 233 per public
 input. Reading the key from an account measures no more expensive than reading
-it from instruction data. Inputs equal to `0` or `1` skip the multiply: with all
-eight inputs zero, `n = 8` verifies in 74,733 CU.
+it from instruction data. Inputs equal to `0` or `1` skip the multiply, and a
+term whose `ICᵢ` is the identity (an unused public input) is skipped entirely:
+with all eight inputs zero, `n = 8` verifies in 74,733 CU.
 
 The pairing dominates for small circuits — 95% of the cost at `n = 1`. The MSM
 overtakes it past roughly 18 public inputs. Full derivation, the measurement

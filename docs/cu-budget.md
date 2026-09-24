@@ -116,10 +116,11 @@ it got there.
 
 One data-dependent saving is available inside the MSM:
 
-| Public input value | Saving      |
+| Term               | Saving      |
 | ------------------ | ----------- |
 | `aᵢ = 0`           | 4,174 (skip both the multiply and the add) |
 | `aᵢ = 1`           | 3,840 (skip the multiply, keep the add)    |
+| `ICᵢ = O`          | 4,174 (skip both; `aᵢ · O = O` for any `aᵢ`). Only a public input that appears in no constraint has an identity `ICᵢ`, so this is a correctness-preserving no-op for real keys, checked at one 64-byte compare per input |
 
 Zero and one are common in practice — padded input vectors, boolean flags,
 selector bits. Skipping costs a comparison against a 32-byte constant, a few
