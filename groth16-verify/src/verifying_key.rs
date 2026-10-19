@@ -115,9 +115,12 @@ impl<'a> VerifyingKey<'a, Unchecked> {
     ///
     /// Call this once when a key is accepted or stored; it costs about
     /// `61,000 + 167·n` CU, and verification does not repeat it. It is a
-    /// well-formedness check: it says the bytes are a Groth16 key for which
-    /// the verifier is sound, not that they are the key for any particular
-    /// circuit. That is settled off-chain against the setup.
+    /// well-formedness check: every point is on the curve and in the
+    /// prime-order subgroup, and the verification equation does not
+    /// degenerate for any proof. It says nothing about the setup that
+    /// produced the key or the circuit it belongs to — a well-formed key with
+    /// a known trapdoor, or for the wrong circuit, passes. That is settled
+    /// off-chain against the setup; see the crate docs.
     pub fn validate_for_publish(self) -> Result<VerifyingKey<'a, Checked>, Groth16Error> {
         crate::validation::validate_for_publish(&self)?;
         Ok(self.assume_validated())

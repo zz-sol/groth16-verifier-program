@@ -302,7 +302,9 @@ That validation is about **well-formedness**, not provenance. It establishes
 that every account the program owns holds a syntactically valid Groth16 key —
 points on the curve and in the subgroup, no identity `α`, `−β`, `−γ` or `−δ`
 (an identity `−γ` would make one fixed proof verify for every input) — so that
-the verifier's own guarantees hold for whatever key it is handed. It cannot
+the verification equation cannot degenerate whatever key the verifier is
+handed. It does not make the verifier sound for that key: a well-formed key
+whose trapdoor the prover knows passes every check. Nor can it
 tell a key for the intended circuit from a well-formed key for a circuit with
 no constraints; both publish, and the second verifies proofs of nothing. Which
 circuit a key belongs to is a property of the trusted setup, established

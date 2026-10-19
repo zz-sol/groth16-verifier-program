@@ -38,8 +38,9 @@
 //! `−γ` makes one fixed proof verify for every public input). Those checks are
 //! [`VerifyingKey::validate_for_publish`]. They cost about `61,000 + 167·n` CU
 //! and are meant to run **once when the key is accepted**, not on every proof.
-//! They establish that the bytes are a Groth16 key for which the verifier is
-//! sound, and nothing more.
+//! They establish that every point is a valid group element and that the
+//! equation cannot degenerate, and nothing more: a key whose trapdoor is
+//! known to the prover passes them, and the verifier is not sound for it.
 //!
 //! **Provenance.** Whether the key is *the right key* — produced by the trusted
 //! setup for the intended circuit, rather than for a circuit with no
