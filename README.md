@@ -289,8 +289,14 @@ address and pointing callers at it.
 Clients can call `OnChainKey::validate_for_publish()` before uploading to check
 exactly the point and identity rules enforced by `Publish`. Conversion alone
 checks the source format and does not require a publishable key. Inline users
-can call `VerifyingKey::validate_for_publish()` once when accepting a key;
-`verify()` does not repeat this registration-time validation.
+call `VerifyingKey::validate_for_publish()` once when accepting a key;
+`verify()` does not repeat this registration-time validation. The type system
+keeps the step visible: constructors return a `VerifyingKey<Unchecked>`,
+`verify()` takes a `VerifyingKey<Checked>`, and the only ways across are
+`validate_for_publish()` and `assume_validated()`. The latter is for a key
+that was validated when it was stored — a registry account the caller has
+checked is owned by the registry program, or the caller's own account filled
+after `validate_for_publish()` — and its name is meant to stand out in review.
 
 That validation is about **well-formedness**, not provenance. It establishes
 that every account the program owns holds a syntactically valid Groth16 key —

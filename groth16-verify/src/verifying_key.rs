@@ -2,31 +2,72 @@
 //!
 //! `β`, `γ` and `δ` are stored *negated* so that the pairing input is built by
 //! copying alone. See `docs/design.md §4`.
+//!
+//! The view carries a type-level marker saying whether its points have been
+//! validated. The constructors produce an [`Unchecked`] key, which only
+//! [`VerifyingKey::validate_for_publish`] or
+//! [`VerifyingKey::assume_validated`] turns into the [`Checked`] key that
+//! [`verify`](crate::verify) accepts. The marker is zero-sized and never
+//! inspected at runtime; its only job is to make the step from parsed bytes
+//! to usable key visible in the caller's code.
 
-use crate::{
-    constants::{
-        vk_body_len, G1_SIZE, G2_SIZE, MAX_PUBLIC_INPUTS, PAIRING_ELEMENT_SIZE, VK_ALPHA_OFFSET,
-        VK_FIXED_SIZE, VK_IC_OFFSET, VK_NEG_BETA_OFFSET, VK_NEG_DELTA_OFFSET, VK_NEG_GAMMA_OFFSET,
+use {
+    crate::{
+        constants::{
+            vk_body_len, G1_SIZE, G2_SIZE, MAX_PUBLIC_INPUTS, PAIRING_ELEMENT_SIZE,
+            VK_ALPHA_OFFSET, VK_FIXED_SIZE, VK_IC_OFFSET, VK_NEG_BETA_OFFSET, VK_NEG_DELTA_OFFSET,
+            VK_NEG_GAMMA_OFFSET,
+        },
+        error::Groth16Error,
+        proof::fixed,
     },
-    error::Groth16Error,
-    proof::fixed,
+    core::marker::PhantomData,
 };
 
-/// A borrowed verifying key in the on-chain wire format.
-#[derive(Debug, Clone, Copy)]
-pub struct VerifyingKey<'a> {
-    body: &'a [u8],
-    num_public_inputs: usize,
+mod sealed {
+    pub trait Sealed {}
+    impl Sealed for super::Unchecked {}
+    impl Sealed for super::Checked {}
 }
 
-impl<'a> VerifyingKey<'a> {
+/// Whether a [`VerifyingKey`]'s points have been validated. Implemented only
+/// by [`Unchecked`] and [`Checked`].
+pub trait KeyState: sealed::Sealed + Copy + core::fmt::Debug {}
+
+/// The constructors' output: layout checked, points not.
+#[derive(Debug, Clone, Copy)]
+pub struct Unchecked;
+
+/// Every point validated, or asserted to have been. The only state
+/// [`verify`](crate::verify) accepts.
+#[derive(Debug, Clone, Copy)]
+pub struct Checked;
+
+impl KeyState for Unchecked {}
+impl KeyState for Checked {}
+
+/// A borrowed verifying key in the on-chain wire format.
+///
+/// `S` is [`Unchecked`] from the constructors and [`Checked`] after
+/// [`validate_for_publish`](Self::validate_for_publish) or
+/// [`assume_validated`](Self::assume_validated). Only a `Checked` key can be
+/// passed to [`verify`](crate::verify).
+#[derive(Debug, Clone, Copy)]
+pub struct VerifyingKey<'a, S: KeyState = Unchecked> {
+    body: &'a [u8],
+    num_public_inputs: usize,
+    state: PhantomData<S>,
+}
+
+impl<'a> VerifyingKey<'a, Unchecked> {
     /// Interprets `body` as a key, deriving `n` from its length. Rejects any
     /// length that is not `448 + 64·(n+1)` for some `n ≤ MAX_PUBLIC_INPUTS`.
     ///
-    /// Layout only: the points are not checked. A body read from a published
-    /// key account has already passed [`Self::validate_for_publish`]; a body
-    /// from anywhere else should be put through it once when it is stored.
-    /// Neither says which circuit the key belongs to — see the crate docs.
+    /// Layout only: the points are not checked, and the result cannot be
+    /// verified against until it has been through
+    /// [`validate_for_publish`](Self::validate_for_publish) or
+    /// [`assume_validated`](Self::assume_validated). Neither says which circuit
+    /// the key belongs to — see the crate docs.
     #[inline]
     pub fn from_body(body: &'a [u8]) -> Result<Self, Groth16Error> {
         let ic_bytes = body
@@ -45,11 +86,13 @@ impl<'a> VerifyingKey<'a> {
         Ok(Self {
             body,
             num_public_inputs,
+            state: PhantomData,
         })
     }
 
     /// Interprets `body` as a key for a *known* `n`, requiring the exact length.
     /// Used where `n` comes from an account header and must agree with the data.
+    /// Layout only, like [`from_body`](Self::from_body).
     #[inline]
     pub fn from_body_with_len(
         body: &'a [u8],
@@ -64,20 +107,51 @@ impl<'a> VerifyingKey<'a> {
         Ok(Self {
             body,
             num_public_inputs,
+            state: PhantomData,
         })
     }
 
     /// Checks every point and rejects identity α, β, γ and δ, matching Publish.
     ///
-    /// Constructors check only layout. Call this once when storing an inline
-    /// key; verification does not repeat this registration-time validation.
-    /// This is a well-formedness check: it says the bytes are a Groth16 key for
-    /// which the verifier is sound, not that they are the key for any
-    /// particular circuit. That is settled off-chain against the setup.
-    pub fn validate_for_publish(&self) -> Result<(), Groth16Error> {
-        crate::validation::validate_for_publish(self)
+    /// Call this once when a key is accepted or stored; it costs about
+    /// `61,000 + 167·n` CU, and verification does not repeat it. It is a
+    /// well-formedness check: it says the bytes are a Groth16 key for which
+    /// the verifier is sound, not that they are the key for any particular
+    /// circuit. That is settled off-chain against the setup.
+    pub fn validate_for_publish(self) -> Result<VerifyingKey<'a, Checked>, Groth16Error> {
+        crate::validation::validate_for_publish(&self)?;
+        Ok(self.assume_validated())
     }
 
+    /// Marks the key as validated without checking anything.
+    ///
+    /// The marker cannot outlive one execution, so every program that verifies
+    /// against a stored key goes through here on each call. It is correct in
+    /// exactly two situations, and the caller is asserting one of them:
+    ///
+    /// - The body was read from a key account **owned by the registry
+    ///   program**, at the address the application pinned. `Publish` is the
+    ///   only instruction that creates such an account and it validates the
+    ///   body first. The discriminator alone proves nothing: any program can
+    ///   write that byte into its own account, so the owner check is the
+    ///   whole argument.
+    /// - The caller stores the key itself and ran
+    ///   [`validate_for_publish`](Self::validate_for_publish) on these exact
+    ///   bytes before storing them.
+    ///
+    /// Anything else hands [`verify`](crate::verify) a key under which its
+    /// result means nothing; see the crate docs for what can go wrong.
+    #[inline]
+    pub fn assume_validated(self) -> VerifyingKey<'a, Checked> {
+        VerifyingKey {
+            body: self.body,
+            num_public_inputs: self.num_public_inputs,
+            state: PhantomData,
+        }
+    }
+}
+
+impl<'a, S: KeyState> VerifyingKey<'a, S> {
     #[inline]
     pub fn body(&self) -> &'a [u8] {
         self.body

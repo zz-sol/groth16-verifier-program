@@ -168,7 +168,9 @@ impl OnChainKey {
     /// Checks the same point and identity rules as on-chain Publish.
     /// Conversion alone does not require a publishable key.
     pub fn validate_for_publish(&self) -> Result<(), solana_groth16_verify::Groth16Error> {
-        solana_groth16_verify::VerifyingKey::from_body(&self.body)?.validate_for_publish()
+        solana_groth16_verify::VerifyingKey::from_body(&self.body)?
+            .validate_for_publish()
+            .map(|_| ())
     }
 
     pub fn body(&self) -> &[u8] {

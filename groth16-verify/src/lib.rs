@@ -9,11 +9,20 @@
 //! use solana_groth16_verify::{Proof, VerifyingKey, verify};
 //!
 //! // `key_body` is a well-formed key whose provenance the caller has
-//! // already established; see below for what each of those means.
-//! let vk = VerifyingKey::from_body(key_body)?;
+//! // already established; see below for what each of those means, and for
+//! // what `assume_validated` asserts.
+//! let vk = VerifyingKey::from_body(key_body)?.assume_validated();
 //! let (proof, public_inputs) = Proof::split_from(instruction_data)?;
 //! verify(&vk, &proof, public_inputs)?;
 //! ```
+//!
+//! [`verify`] takes a `VerifyingKey<Checked>` and the constructors return a
+//! `VerifyingKey<Unchecked>`. The only ways across are
+//! [`VerifyingKey::validate_for_publish`], which checks the points, and
+//! [`VerifyingKey::assume_validated`], which asserts that someone already did.
+//! The marker is a zero-sized type, so this costs nothing on-chain; what it
+//! buys is that skipping validation is a named call a reviewer can grep for,
+//! not an omission.
 //!
 //! # What is, and is not, checked about the key
 //!
@@ -47,12 +56,14 @@
 //! `solana-groth16-program`, and the only instruction that creates one,
 //! `Publish`, runs `validate_for_publish` on the body before writing it. A key
 //! that came from anywhere else — instruction data, a program's own account, a
-//! compile-time constant — should be put through it once by whoever stores it:
+//! compile-time constant — should be put through `validate_for_publish` once
+//! by whoever stores it:
 //!
 //! ```ignore
-//! let vk = VerifyingKey::from_body(body)?;
-//! vk.validate_for_publish()?; // once, when the key is stored or pinned
+//! let vk = VerifyingKey::from_body(body)?.validate_for_publish()?; // once, when stored
 //! ```
+//!
+//! and `assume_validated` on the stored bytes thereafter.
 //!
 //! All byte formats are the on-chain wire format — uncompressed, big-endian,
 //! G2 negations pre-applied in the key — documented in the repository README.
@@ -99,4 +110,8 @@ mod verifying_key;
 
 pub use error::Groth16Error;
 #[cfg(feature = "verify")]
-pub use {proof::Proof, verifier::verify, verifying_key::VerifyingKey};
+pub use {
+    proof::Proof,
+    verifier::verify,
+    verifying_key::{Checked, KeyState, Unchecked, VerifyingKey},
+};

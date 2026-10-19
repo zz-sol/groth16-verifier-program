@@ -21,17 +21,26 @@ use crate::{
     proof::Proof,
     scalar,
     syscall::{g1_add, g1_mul, pairing_is_one},
-    verifying_key::VerifyingKey,
+    verifying_key::{Checked, VerifyingKey},
 };
 
 /// Verifies `proof` against `vk` for `public_inputs` (`n × 32` big-endian
 /// canonical scalars, no leading constant-one term).
 ///
+/// Only a [`Checked`] key is accepted: one that has been through
+/// [`VerifyingKey::validate_for_publish`] or
+/// [`VerifyingKey::assume_validated`]. The key's points are not re-checked
+/// here.
+///
 /// `Ok(())` means the proof verifies. See [`Groth16Error`] for the failure
 /// modes; note that [`Groth16Error::InvalidPoint`] on this path means one of
 /// `A`, `B`, `C` failed the syscall's curve or subgroup check.
 #[inline]
-pub fn verify(vk: &VerifyingKey, proof: &Proof, public_inputs: &[u8]) -> Result<(), Groth16Error> {
+pub fn verify(
+    vk: &VerifyingKey<'_, Checked>,
+    proof: &Proof,
+    public_inputs: &[u8],
+) -> Result<(), Groth16Error> {
     let l = prepare_inputs(vk, public_inputs)?;
     let input = assemble_pairing_input(vk, proof, &l);
     check_pairing(&input)
@@ -47,7 +56,7 @@ pub fn verify(vk: &VerifyingKey, proof: &Proof, public_inputs: &[u8]) -> Result<
 /// contributes nothing for any scalar, and it is what a public input that
 /// appears in no constraint looks like in the key.
 pub fn prepare_inputs(
-    vk: &VerifyingKey,
+    vk: &VerifyingKey<'_, Checked>,
     public_inputs: &[u8],
 ) -> Result<[u8; G1_SIZE], Groth16Error> {
     let n = vk.num_public_inputs();
@@ -87,7 +96,7 @@ pub fn prepare_inputs(
 /// Stage 2: lay out the four pairs. Pure copying; cannot fail.
 #[inline]
 pub fn assemble_pairing_input(
-    vk: &VerifyingKey,
+    vk: &VerifyingKey<'_, Checked>,
     proof: &Proof,
     l: &[u8; G1_SIZE],
 ) -> [u8; PAIRING_INPUT_SIZE] {
@@ -100,7 +109,7 @@ pub fn assemble_pairing_input(
 #[inline]
 pub fn write_pairing_input(
     input: &mut [u8; PAIRING_INPUT_SIZE],
-    vk: &VerifyingKey,
+    vk: &VerifyingKey<'_, Checked>,
     proof: &Proof,
     l: &[u8; G1_SIZE],
 ) {
@@ -169,7 +178,9 @@ mod tests {
     }
 
     fn l(key: &OnChainKey, scalars: &[u64]) -> [u8; G1_SIZE] {
-        let vk = VerifyingKey::from_body(key.body()).unwrap();
+        let vk = VerifyingKey::from_body(key.body())
+            .unwrap()
+            .assume_validated();
         prepare_inputs(&vk, &inputs(scalars)).unwrap()
     }
 
@@ -224,7 +235,9 @@ mod tests {
         // failure must be ProofInvalid — the pairing decoded the identity in
         // slot 2 — not InvalidPoint.
         let key = make_key(&[G1Affine::identity(), g1(4)]);
-        let vk = VerifyingKey::from_body(key.body()).unwrap();
+        let vk = VerifyingKey::from_body(key.body())
+            .unwrap()
+            .assume_validated();
         let proof_bytes = OnChainProof::new(&g1(23), &g2(29), &g1(31));
         let proof = Proof::from_bytes(&proof_bytes.0).unwrap();
         assert_eq!(

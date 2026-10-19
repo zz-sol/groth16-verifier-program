@@ -4,6 +4,7 @@ use crate::{
     constants::{G1_SIZE, PAIRING_ELEMENT_SIZE},
     scalar::is_zero,
     syscall::{g1_add, pairing_validate_points},
+    verifying_key::Unchecked,
     Groth16Error, VerifyingKey,
 };
 
@@ -20,7 +21,7 @@ use crate::{
 ///
 /// `α`, `−β`, `−γ`, `−δ` must not be the identity — the equation degenerates —
 /// while any `ICᵢ` may be.
-pub fn validate_for_publish(vk: &VerifyingKey) -> Result<(), Groth16Error> {
+pub fn validate_for_publish(vk: &VerifyingKey<'_, Unchecked>) -> Result<(), Groth16Error> {
     let alpha = vk.alpha();
     let ic0 = vk.ic(0);
     if is_zero(alpha)

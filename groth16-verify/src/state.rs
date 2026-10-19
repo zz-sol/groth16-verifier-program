@@ -49,7 +49,7 @@ pub struct KeyHeader {
 
 /// Parses a canonical key account: checks the discriminator and that the
 /// declared `n` matches the data length exactly, then returns the header and
-/// a key view over the body.
+/// an [`Unchecked`](crate::Unchecked) key view over the body.
 ///
 /// This is `Verify`'s entire account check beyond ownership — one byte compare
 /// and one length compare. See `docs/design.md §2`.

@@ -4,6 +4,8 @@
 //!
 //! The account check is ownership plus the key discriminator and length,
 //! nothing more — see `docs/design.md §2` for why the PDA is not re-derived.
+//! Ownership is what licenses `assume_validated` below: only `Publish` creates
+//! accounts this program owns, and it validates every point first.
 
 use {
     crate::{error::map_groth16, processor},
@@ -24,6 +26,7 @@ pub fn process(
 
     let data = key.try_borrow()?;
     let (_, vk) = read_key_account(&data).map_err(map_groth16)?;
+    let vk = vk.assume_validated();
     let (proof, public_inputs) = Proof::split_from(payload).map_err(map_groth16)?;
     solana_groth16_verify::verify(&vk, &proof, public_inputs).map_err(map_groth16)
 }

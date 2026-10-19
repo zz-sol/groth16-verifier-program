@@ -77,7 +77,10 @@ fn solana_groth16_verify_host_path_accepts_the_wire_bytes() {
     let proof = gnark::parse_proof(&fixture("proof.bin")).unwrap();
     let inputs = gnark::parse_public_witness(&fixture("public.bin")).unwrap();
 
-    let vk = VerifyingKey::from_body(key.body()).unwrap();
+    let vk = VerifyingKey::from_body(key.body())
+        .unwrap()
+        .validate_for_publish()
+        .unwrap();
     let proof = Proof::from_bytes(&proof.0).unwrap();
     let flat = public_inputs_flat(&inputs);
     solana_groth16_verify::verify(&vk, &proof, &flat).unwrap();

@@ -58,8 +58,11 @@ pub fn process_instruction(context: InstructionContext) -> ProgramResult {
         .ok_or(ProgramError::InvalidInstructionData)?;
 
     let input = Input::parse(rest)?;
+    // The bench measures the verifier's stages, not key validation; the key
+    // is whatever the harness supplied.
     let vk = VerifyingKey::from_body_with_len(input.vk_body, input.n)
-        .map_err(|_| ProgramError::InvalidInstructionData)?;
+        .map_err(|_| ProgramError::InvalidInstructionData)?
+        .assume_validated();
     let proof = Proof::from_bytes(input.proof).map_err(|_| ProgramError::InvalidInstructionData)?;
 
     let mut out = [0u8; RETURN_DATA_LEN];

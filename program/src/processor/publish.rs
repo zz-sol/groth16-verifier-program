@@ -88,7 +88,7 @@ pub fn process(
     }
 
     // --- 3. validate every point ------------------------------------------------
-    vk.validate_for_publish().map_err(map_groth16)?;
+    let _checked = vk.validate_for_publish().map_err(map_groth16)?;
 
     // --- 4. create, fill, close -------------------------------------------------
     let space = key_account_len(n);
