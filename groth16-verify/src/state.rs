@@ -51,8 +51,21 @@ pub struct KeyHeader {
 /// declared `n` matches the data length exactly, then returns the header and
 /// an [`Unchecked`](crate::Unchecked) key view over the body.
 ///
-/// This is `Verify`'s entire account check beyond ownership — one byte compare
-/// and one length compare. See `docs/design.md §2`.
+/// This is parsing, not authentication. It sees only the bytes, so it cannot
+/// establish either of the two facts that make the body trustworthy, and the
+/// caller must check both before calling
+/// [`assume_validated`](VerifyingKey::assume_validated):
+///
+/// - **The account is owned by the registry program.** That is what proves
+///   `Publish` created it and validated the points. The discriminator does
+///   not: any program can write `1` into the first byte of its own account.
+/// - **The address is the one the application pinned.** Ownership proves the
+///   body is *a* published key; only the address says it is the key for
+///   *this* circuit. Pass the account's address through a constant, not
+///   through instruction data a caller controls.
+///
+/// Together with ownership this is `Verify`'s entire account check — one byte
+/// compare and one length compare. See `docs/design.md §2`.
 #[inline]
 pub fn read_key_account(data: &[u8]) -> Result<(KeyHeader, VerifyingKey<'_>), Groth16Error> {
     if data.len() < KEY_HEADER_LEN {

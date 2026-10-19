@@ -54,10 +54,13 @@
 //! In the usual deployment the key is already well-formed by the time it
 //! reaches this crate: it was read from a key account of
 //! `solana-groth16-program`, and the only instruction that creates one,
-//! `Publish`, runs `validate_for_publish` on the body before writing it. A key
-//! that came from anywhere else — instruction data, a program's own account, a
-//! compile-time constant — should be put through `validate_for_publish` once
-//! by whoever stores it:
+//! `Publish`, runs `validate_for_publish` on the body before writing it. That
+//! argument rests on the account's **owner**, which [`state::read_key_account`]
+//! cannot see: it is the caller's job to check that the account is owned by
+//! the registry program and sits at the address it pinned, and only then to
+//! call `assume_validated`. A key that came from anywhere else — instruction
+//! data, a program's own account, a compile-time constant — should be put
+//! through `validate_for_publish` once by whoever stores it:
 //!
 //! ```ignore
 //! let vk = VerifyingKey::from_body(body)?.validate_for_publish()?; // once, when stored
